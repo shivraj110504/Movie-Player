@@ -7,12 +7,12 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showSkipIndicator, setShowSkipIndicator] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef(null);
   const lastTapTime = useRef(0);
-  const lastTapSide = useRef(null);
-  const iframeRef = useRef(null);
 
-  const FOLDER_ID = process.env.REACT_APP_FOLDER_ID;
-  const API_KEY = process.env.REACT_APP_GOOGLE_API;
+  const FOLDER_ID = process.env.REACT_APP_FOLDER_ID || '18AWs95TmYiGv3ZaZ4yW62KLbymPwgB0U';
+  const API_KEY = process.env.REACT_APP_GOOGLE_API || 'AIzaSyBR0rsD2dKFzI6lJOaX78vtzTPAw8TtrH8';
 
   useEffect(() => {
     loadMovies();
@@ -28,7 +28,7 @@ function App() {
       );
       
       if (!response.ok) {
-        throw new Error('Could not load movies');
+        throw new Error('Could not load movies. Make sure the folder is public.');
       }
       
       const data = await response.json();
@@ -45,13 +45,13 @@ function App() {
       
       setLoading(false);
     } catch (err) {
-      setError('Failed to load movies. Make sure the Google Drive folder is public.');
+      setError('Failed to load movies. Please make sure the Google Drive folder is set to "Anyone with the link can view".');
       setLoading(false);
     }
   };
 
-  const getStreamLink = (fileId) => {
-    return `https://drive.google.com/file/d/${fileId}/preview`;
+  const getDirectStreamLink = (fileId) => {
+    return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${API_KEY}`;
   };
 
   const formatFileSize = (bytes) => {
@@ -64,11 +64,16 @@ function App() {
 
   const handleMovieClick = (movie) => {
     setSelectedMovie(movie);
+    setIsPlaying(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBack = () => {
     setSelectedMovie(null);
+    setIsPlaying(false);
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
   };
 
   const handleRefresh = () => {
@@ -76,16 +81,25 @@ function App() {
   };
 
   const toggleFullscreen = () => {
-    const elem = document.querySelector('iframe');
-    if (elem && !document.fullscreenElement) {
-      const container = elem.parentElement;
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
+    if (videoRef.current) {
+      if (!document.fullscreenElement) {
+        const container = videoRef.current.parentElement;
+        if (container.requestFullscreen) {
+          container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+          container.webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
       }
-    } else if (document.exitFullscreen) {
-      document.exitFullscreen();
+    }
+  };
+
+  const skipVideo = (seconds) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime += seconds;
     }
   };
 
@@ -96,11 +110,13 @@ function App() {
     if (tapLength < 300 && tapLength > 0) {
       e.preventDefault();
       
+      const skipSeconds = side === 'left' ? -10 : 10;
+      skipVideo(skipSeconds);
+      
       setShowSkipIndicator(side);
       setTimeout(() => setShowSkipIndicator(null), 800);
     }
     lastTapTime.current = currentTime;
-    lastTapSide.current = side;
   };
 
   if (loading) {
@@ -215,7 +231,7 @@ function App() {
                   top: '50%',
                   transform: 'translate(-50%, -50%)',
                   zIndex: 20,
-                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
                   borderRadius: '50%',
                   width: '80px',
                   height: '80px',
@@ -240,7 +256,7 @@ function App() {
                   top: '50%',
                   transform: 'translate(50%, -50%)',
                   zIndex: 20,
-                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
                   borderRadius: '50%',
                   width: '80px',
                   height: '80px',
@@ -258,21 +274,26 @@ function App() {
                 </div>
               )}
 
-              <iframe
-                ref={iframeRef}
-                src={getStreamLink(selectedMovie.id)}
+              <video
+                ref={videoRef}
+                src={getDirectStreamLink(selectedMovie.id)}
+                controls
+                controlsList="nodownload"
+                preload="metadata"
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
                   height: '100%',
-                  border: 'none'
+                  backgroundColor: '#000'
                 }}
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-                title={selectedMovie.name}
-              />
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                playsInline
+              >
+                Your browser does not support video playback.
+              </video>
             </div>
             <div style={{ 
               marginTop: '15px', 
@@ -282,15 +303,111 @@ function App() {
               fontSize: '12px',
               color: '#999'
             }}>
-              <p style={{ margin: '5px 0' }}>💡 Double-tap left side to go back 10 seconds</p>
+              <p style={{ margin: '5px 0' }}>💡 Double-tap left side to rewind 10 seconds</p>
               <p style={{ margin: '5px 0' }}>💡 Double-tap right side to skip forward 10 seconds</p>
-              <p style={{ margin: '5px 0' }}>📱 On mobile: Use the player's built-in controls to seek</p>
+              <p style={{ margin: '5px 0' }}>📱 Streams in chunks - starts playing instantly!</p>
             </div>
           </div>
         </div>
       ) : (
         <div>
-          {/* Rest of the code remains the same */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '12px 15px',
+            borderBottom: '1px solid #333',
+            backgroundColor: '#111'
+          }}>
+            <h1 style={{ margin: 0, fontSize: '18px' }}>Movies</h1>
+            <button 
+              onClick={handleRefresh}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#333',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}
+            >
+              ↻ Refresh
+            </button>
+          </div>
+          
+          {error ? (
+            <div style={{ padding: '20px' }}>
+              <p style={{ color: '#ff6b6b', fontSize: '14px' }}>{error}</p>
+              <p style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>
+                To fix: Go to Google Drive → Right-click folder → Share → Change to "Anyone with the link"
+              </p>
+            </div>
+          ) : movies.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <p style={{ fontSize: '14px' }}>No movies found.</p>
+              <p style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>
+                Upload videos to your Google Drive folder and click Refresh.
+              </p>
+            </div>
+          ) : (
+            <div style={{ 
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: '12px',
+              padding: '12px'
+            }}>
+              {movies.map((movie) => (
+                <div
+                  key={movie.id}
+                  onClick={() => handleMovieClick(movie)}
+                  style={{
+                    backgroundColor: '#1a1a1a',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    border: '1px solid #333'
+                  }}
+                >
+                  <div style={{
+                    width: '100%',
+                    paddingBottom: '150%',
+                    backgroundColor: '#333',
+                    borderRadius: '4px',
+                    marginBottom: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative'
+                  }}>
+                    <div style={{
+                      position: 'absolute',
+                      fontSize: '32px'
+                    }}>▶</div>
+                  </div>
+                  <p style={{ 
+                    margin: 0,
+                    fontSize: '12px',
+                    textAlign: 'center',
+                    wordBreak: 'break-word',
+                    lineHeight: '1.3'
+                  }}>
+                    {movie.name}
+                  </p>
+                  {movie.size && (
+                    <p style={{
+                      margin: '4px 0 0 0',
+                      fontSize: '10px',
+                      textAlign: 'center',
+                      color: '#666'
+                    }}>
+                      {formatFileSize(movie.size)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
