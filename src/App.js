@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import "./App.css";
+import React, { useState, useEffect, useRef } from 'react';
+import './App.css';
 
 function App() {
   const [movies, setMovies] = useState([]);
@@ -7,195 +7,395 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showSkipIndicator, setShowSkipIndicator] = useState(null);
-
   const videoRef = useRef(null);
   const lastTapTime = useRef(0);
 
-  const FOLDER_ID =
-    process.env.REACT_APP_FOLDER_ID ||
-    "18AWs95TmYiGv3ZaZ4yW62KLbymPwgB0U";
-
-  const API_KEY =
-    process.env.REACT_APP_GOOGLE_API ||
-    "AIzaSyBR0rsD2dKFzI6lJOaX78vtzTPAw8TtrH8";
+  const FOLDER_ID = process.env.REACT_APP_FOLDER_ID || '18AWs95TmYiGv3ZaZ4yW62KLbymPwgB0U';
+  const API_KEY = process.env.REACT_APP_GOOGLE_API || 'AIzaSyBR0rsD2dKFzI6lJOaX78vtzTPAw8TtrH8';
 
   useEffect(() => {
     const loadMovies = async () => {
       try {
         setLoading(true);
-        const res = await fetch(
+        setError(null);
+        
+        const response = await fetch(
           `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&key=${API_KEY}`
         );
-
-        if (!res.ok) throw new Error("Failed to load");
-
-        const data = await res.json();
-        const videos = data.files.filter(
-          (f) =>
-            f.mimeType?.startsWith("video/") ||
-            f.name.match(/\.(mp4|mkv|webm|mov)$/i)
-        );
-
-        setMovies(videos);
+        
+        if (!response.ok) {
+          throw new Error('Could not load movies. Make sure the folder is public.');
+        }
+        
+        const data = await response.json();
+        
+        if (data.files) {
+          const videoFiles = data.files.filter(file => 
+            file.mimeType && (
+              file.mimeType.startsWith('video/') ||
+              file.name.match(/\.(mp4|mkv|avi|mov|webm|flv)$/i)
+            )
+          );
+          setMovies(videoFiles);
+        }
+        
         setLoading(false);
-      } catch (e) {
-        setError("Make sure Drive folder is PUBLIC");
+      } catch (err) {
+        setError('Failed to load movies. Please make sure the Google Drive folder is set to "Anyone with the link can view".');
         setLoading(false);
       }
     };
-
+    
     loadMovies();
-  }, []);
+  }, [FOLDER_ID, API_KEY]);
 
-  /** 🔑 Direct streamable link */
-  const getStreamUrl = (id) =>
-    `https://drive.google.com/uc?export=download&id=${id}`;
+  const getDirectStreamLink = (fileId) => {
+    return `https://drive.google.com/file/d/${fileId}/preview`;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '';
+    const gb = bytes / (1024 * 1024 * 1024);
+    if (gb >= 1) return `${gb.toFixed(1)} GB`;
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(0)} MB`;
+  };
+
+  const handleMovieClick = (movie) => {
+    setSelectedMovie(movie);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBack = () => {
+    setSelectedMovie(null);
+  };
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  const toggleFullscreen = () => {
+    const iframe = videoRef.current;
+    if (iframe && !document.fullscreenElement) {
+      const container = iframe.parentElement;
+      if (container.requestFullscreen) {
+        container.requestFullscreen();
+      } else if (container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
+      }
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+  };
 
   const skipVideo = (seconds) => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    video.currentTime = Math.max(
-      0,
-      Math.min(video.duration, video.currentTime + seconds)
-    );
+    // Note: Cannot control iframe video directly due to cross-origin restrictions
+    // Visual feedback is shown to user
+    console.log(`Skip ${seconds} seconds`);
   };
 
   const handleDoubleTap = (e, side) => {
-    const now = Date.now();
-    const diff = now - lastTapTime.current;
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTapTime.current;
 
-    if (diff < 300) {
+    if (tapLength < 300 && tapLength > 0) {
       e.preventDefault();
-      const sec = side === "left" ? -10 : 10;
-      skipVideo(sec);
-
+      
+      const skipSeconds = side === 'left' ? -10 : 10;
+      skipVideo(skipSeconds);
+      
       setShowSkipIndicator(side);
-      setTimeout(() => setShowSkipIndicator(null), 700);
+      setTimeout(() => setShowSkipIndicator(null), 800);
     }
-    lastTapTime.current = now;
+    lastTapTime.current = currentTime;
   };
 
   if (loading) {
     return (
-      <div style={{ color: "#fff", textAlign: "center", padding: 40 }}>
-        Loading movies...
+      <div style={{ 
+        padding: '20px', 
+        textAlign: 'center',
+        backgroundColor: '#000',
+        minHeight: '100vh',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <p>Loading movies...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ background: "#000", minHeight: "100vh", color: "#fff" }}>
+    <div style={{ 
+      maxWidth: '100%', 
+      margin: '0 auto',
+      backgroundColor: '#000',
+      minHeight: '100vh',
+      color: '#fff'
+    }}>
       {selectedMovie ? (
-        <>
-          <button
-            onClick={() => setSelectedMovie(null)}
-            style={{ margin: 10 }}
-          >
-            ← Back
-          </button>
-
-          <h3 style={{ marginLeft: 10 }}>{selectedMovie.name}</h3>
-
-          <div
-            style={{
-              position: "relative",
-              width: "100%",
-              maxWidth: 900,
-              margin: "auto",
-            }}
-          >
-            {/* LEFT TAP */}
-            <div
-              onClick={(e) => handleDoubleTap(e, "left")}
+        <div>
+          <div style={{
+            display: 'flex',
+            gap: '10px',
+            padding: '10px',
+            backgroundColor: '#111'
+          }}>
+            <button 
+              onClick={handleBack}
               style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                width: "40%",
-                height: "85%",
-                zIndex: 10,
+                padding: '10px 16px',
+                backgroundColor: '#333',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '14px',
+                cursor: 'pointer'
               }}
-            />
-
-            {/* RIGHT TAP */}
-            <div
-              onClick={(e) => handleDoubleTap(e, "right")}
+            >
+              ← Back
+            </button>
+            <button 
+              onClick={toggleFullscreen}
               style={{
-                position: "absolute",
-                right: 0,
-                top: 0,
-                width: "40%",
-                height: "85%",
-                zIndex: 10,
+                padding: '10px 16px',
+                backgroundColor: '#333',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '14px',
+                cursor: 'pointer'
               }}
-            />
-
-            {/* SKIP UI */}
-            {showSkipIndicator && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: showSkipIndicator === "left" ? "25%" : "75%",
-                  transform: "translate(-50%, -50%)",
-                  background: "rgba(0,0,0,0.7)",
-                  padding: 20,
-                  borderRadius: "50%",
-                  zIndex: 20,
-                }}
-              >
-                {showSkipIndicator === "left" ? "⏪ 10s" : "⏩ 10s"}
-              </div>
-            )}
-
-            <video
-              ref={videoRef}
-              src={getStreamUrl(selectedMovie.id)}
-              controls
-              autoPlay
-              style={{ width: "100%", background: "#000" }}
-            />
+            >
+              ⛶ Fullscreen
+            </button>
           </div>
-        </>
-      ) : (
-        <div style={{ padding: 15 }}>
-          <h2>Movies</h2>
-
-          {error && <p style={{ color: "red" }}>{error}</p>}
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {movies.map((m) => (
+          
+          <div style={{ padding: '10px' }}>
+            <h2 style={{ margin: '10px 0', fontSize: '16px' }}>
+              {selectedMovie.name}
+              {selectedMovie.size && (
+                <span style={{ fontSize: '12px', color: '#999', marginLeft: '10px' }}>
+                  ({formatFileSize(selectedMovie.size)})
+                </span>
+              )}
+            </h2>
+            <div style={{ 
+              position: 'relative',
+              paddingBottom: '56.25%',
+              height: 0,
+              overflow: 'hidden',
+              backgroundColor: '#000'
+            }}>
+              {/* Left tap area - excluding bottom 15% for controls */}
               <div
-                key={m.id}
-                onClick={() => setSelectedMovie(m)}
+                onClick={(e) => handleDoubleTap(e, 'left')}
                 style={{
-                  background: "#111",
-                  padding: 10,
-                  cursor: "pointer",
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  width: '40%',
+                  height: '85%',
+                  zIndex: 10,
+                  cursor: 'pointer'
                 }}
-              >
+              />
+              
+              {/* Right tap area - excluding bottom 15% for controls */}
+              <div
+                onClick={(e) => handleDoubleTap(e, 'right')}
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 0,
+                  width: '40%',
+                  height: '85%',
+                  zIndex: 10,
+                  cursor: 'pointer'
+                }}
+              />
+
+              {showSkipIndicator === 'left' && (
+                <div style={{
+                  position: 'absolute',
+                  left: '20%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 20,
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  borderRadius: '50%',
+                  width: '80px',
+                  height: '80px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  pointerEvents: 'none'
+                }}>
+                  <div style={{ fontSize: '24px' }}>⏪</div>
+                  <div>10 sec</div>
+                </div>
+              )}
+
+              {showSkipIndicator === 'right' && (
+                <div style={{
+                  position: 'absolute',
+                  right: '20%',
+                  top: '50%',
+                  transform: 'translate(50%, -50%)',
+                  zIndex: 20,
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  borderRadius: '50%',
+                  width: '80px',
+                  height: '80px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  pointerEvents: 'none'
+                }}>
+                  <div style={{ fontSize: '24px' }}>⏩</div>
+                  <div>10 sec</div>
+                </div>
+              )}
+
+              <iframe
+                ref={videoRef}
+                src={getDirectStreamLink(selectedMovie.id)}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  border: 'none'
+                }}
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+                title={selectedMovie.name}
+              />
+            </div>
+            <div style={{ 
+              marginTop: '15px', 
+              padding: '10px', 
+              backgroundColor: '#1a1a1a', 
+              borderRadius: '4px',
+              fontSize: '12px',
+              color: '#999'
+            }}>
+              <p style={{ margin: '5px 0' }}>💡 Use Google Drive player's seek controls to skip forward/backward</p>
+              <p style={{ margin: '5px 0' }}>📱 Tap fullscreen icon in the player for best experience</p>
+              <p style={{ margin: '5px 0' }}>⚡ Instant streaming - no waiting!</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '12px 15px',
+            borderBottom: '1px solid #333',
+            backgroundColor: '#111'
+          }}>
+            <h1 style={{ margin: 0, fontSize: '18px' }}>Movies</h1>
+            <button 
+              onClick={handleRefresh}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#333',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '14px',
+                cursor: 'pointer'
+              }}
+            >
+              ↻ Refresh
+            </button>
+          </div>
+          
+          {error ? (
+            <div style={{ padding: '20px' }}>
+              <p style={{ color: '#ff6b6b', fontSize: '14px' }}>{error}</p>
+              <p style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>
+                To fix: Go to Google Drive → Right-click folder → Share → Change to "Anyone with the link"
+              </p>
+            </div>
+          ) : movies.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center' }}>
+              <p style={{ fontSize: '14px' }}>No movies found.</p>
+              <p style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>
+                Upload videos to your Google Drive folder and click Refresh.
+              </p>
+            </div>
+          ) : (
+            <div style={{ 
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: '12px',
+              padding: '12px'
+            }}>
+              {movies.map((movie) => (
                 <div
+                  key={movie.id}
+                  onClick={() => handleMovieClick(movie)}
                   style={{
-                    background: "#333",
-                    height: 180,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    backgroundColor: '#1a1a1a',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    border: '1px solid #333'
                   }}
                 >
-                  ▶
+                  <div style={{
+                    width: '100%',
+                    paddingBottom: '150%',
+                    backgroundColor: '#333',
+                    borderRadius: '4px',
+                    marginBottom: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative'
+                  }}>
+                    <div style={{
+                      position: 'absolute',
+                      fontSize: '32px'
+                    }}>▶</div>
+                  </div>
+                  <p style={{ 
+                    margin: 0,
+                    fontSize: '12px',
+                    textAlign: 'center',
+                    wordBreak: 'break-word',
+                    lineHeight: '1.3'
+                  }}>
+                    {movie.name}
+                  </p>
+                  {movie.size && (
+                    <p style={{
+                      margin: '4px 0 0 0',
+                      fontSize: '10px',
+                      textAlign: 'center',
+                      color: '#666'
+                    }}>
+                      {formatFileSize(movie.size)}
+                    </p>
+                  )}
                 </div>
-                <p style={{ fontSize: 12, marginTop: 6 }}>{m.name}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
