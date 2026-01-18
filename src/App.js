@@ -7,7 +7,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const FOLDER_ID = '18AWs95TmYiGv3ZaZ4yW62KLbymPwgB0U';
+  const FOLDER_ID = process.env.REACT_APP_FOLDER_ID;
+  const API_KEY = process.env.REACT_APP_API_KEY;
 
   useEffect(() => {
     loadMovies();
@@ -19,7 +20,7 @@ function App() {
       setError(null);
       
       const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType)&key=AIzaSyBR0rsD2dKFzI6lJOaX78vtzTPAw8TtrH8`
+        `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType)&key=${API_KEY}`
       );
       
       if (!response.ok) {
