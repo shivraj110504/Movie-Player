@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 
 function App() {
@@ -6,7 +6,6 @@ function App() {
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const videoRef = useRef(null);
 
   const FOLDER_ID = process.env.REACT_APP_FOLDER_ID;
   const API_KEY = process.env.REACT_APP_GOOGLE_API;
@@ -48,7 +47,7 @@ function App() {
   };
 
   const getStreamLink = (fileId) => {
-    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+    return `https://drive.google.com/file/d/${fileId}/preview`;
   };
 
   const formatFileSize = (bytes) => {
@@ -66,10 +65,6 @@ function App() {
 
   const handleBack = () => {
     setSelectedMovie(null);
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.src = '';
-    }
   };
 
   const handleRefresh = () => {
@@ -77,18 +72,16 @@ function App() {
   };
 
   const toggleFullscreen = () => {
-    if (videoRef.current) {
-      if (!document.fullscreenElement) {
-        if (videoRef.current.requestFullscreen) {
-          videoRef.current.requestFullscreen();
-        } else if (videoRef.current.webkitEnterFullscreen) {
-          videoRef.current.webkitEnterFullscreen();
-        }
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        }
+    const elem = document.querySelector('iframe');
+    if (elem && !document.fullscreenElement) {
+      const container = elem.parentElement;
+      if (container.requestFullscreen) {
+        container.requestFullscreen();
+      } else if (container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
       }
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
     }
   };
 
@@ -171,25 +164,20 @@ function App() {
               overflow: 'hidden',
               backgroundColor: '#000'
             }}>
-              <video
-                ref={videoRef}
+              <iframe
                 src={getStreamLink(selectedMovie.id)}
-                controls
-                controlsList="nodownload"
-                preload="metadata"
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
                   height: '100%',
-                  backgroundColor: '#000'
+                  border: 'none'
                 }}
-                playsInline
-                autoPlay
-              >
-                Your browser does not support video playback.
-              </video>
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+                title={selectedMovie.name}
+              />
             </div>
             <div style={{ 
               marginTop: '15px', 
@@ -199,8 +187,8 @@ function App() {
               fontSize: '12px',
               color: '#999'
             }}>
-              <p style={{ margin: '5px 0' }}>💡 Tip: Video streams in chunks like YouTube - no need to wait for full download!</p>
-              <p style={{ margin: '5px 0' }}>📱 On mobile: Tap fullscreen for best experience</p>
+              <p style={{ margin: '5px 0' }}>💡 Using Google Drive's optimized player for instant streaming</p>
+              <p style={{ margin: '5px 0' }}>📱 On mobile: Tap the fullscreen button in the player</p>
             </div>
           </div>
         </div>
