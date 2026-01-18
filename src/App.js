@@ -7,7 +7,6 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showSkipIndicator, setShowSkipIndicator] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef(null);
   const lastTapTime = useRef(0);
 
@@ -15,40 +14,40 @@ function App() {
   const API_KEY = process.env.REACT_APP_GOOGLE_API || 'AIzaSyBR0rsD2dKFzI6lJOaX78vtzTPAw8TtrH8';
 
   useEffect(() => {
-    loadMovies();
-  }, []);
-
-  const loadMovies = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&key=${API_KEY}`
-      );
-      
-      if (!response.ok) {
-        throw new Error('Could not load movies. Make sure the folder is public.');
-      }
-      
-      const data = await response.json();
-      
-      if (data.files) {
-        const videoFiles = data.files.filter(file => 
-          file.mimeType && (
-            file.mimeType.startsWith('video/') ||
-            file.name.match(/\.(mp4|mkv|avi|mov|webm|flv)$/i)
-          )
+    const loadMovies = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await fetch(
+          `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&key=${API_KEY}`
         );
-        setMovies(videoFiles);
+        
+        if (!response.ok) {
+          throw new Error('Could not load movies. Make sure the folder is public.');
+        }
+        
+        const data = await response.json();
+        
+        if (data.files) {
+          const videoFiles = data.files.filter(file => 
+            file.mimeType && (
+              file.mimeType.startsWith('video/') ||
+              file.name.match(/\.(mp4|mkv|avi|mov|webm|flv)$/i)
+            )
+          );
+          setMovies(videoFiles);
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        setError('Failed to load movies. Please make sure the Google Drive folder is set to "Anyone with the link can view".');
+        setLoading(false);
       }
-      
-      setLoading(false);
-    } catch (err) {
-      setError('Failed to load movies. Please make sure the Google Drive folder is set to "Anyone with the link can view".');
-      setLoading(false);
-    }
-  };
+    };
+    
+    loadMovies();
+  }, [FOLDER_ID, API_KEY]);
 
   const getDirectStreamLink = (fileId) => {
     return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${API_KEY}`;
@@ -64,20 +63,18 @@ function App() {
 
   const handleMovieClick = (movie) => {
     setSelectedMovie(movie);
-    setIsPlaying(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBack = () => {
     setSelectedMovie(null);
-    setIsPlaying(false);
     if (videoRef.current) {
       videoRef.current.pause();
     }
   };
 
   const handleRefresh = () => {
-    loadMovies();
+    window.location.reload();
   };
 
   const toggleFullscreen = () => {
@@ -288,8 +285,8 @@ function App() {
                   height: '100%',
                   backgroundColor: '#000'
                 }}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
+                onPlay={() => {}}
+                onPause={() => {}}
                 playsInline
               >
                 Your browser does not support video playback.
