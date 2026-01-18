@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 
 function App() {
@@ -6,9 +6,10 @@ function App() {
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const videoRef = useRef(null);
 
   const FOLDER_ID = process.env.REACT_APP_FOLDER_ID;
-  const API_KEY = process.env.REACT_APP_API_KEY;
+  const API_KEY = process.env.REACT_APP_GOOGLE_API;
 
   useEffect(() => {
     loadMovies();
@@ -20,7 +21,7 @@ function App() {
       setError(null);
       
       const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType)&key=${API_KEY}`
+        `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&key=${API_KEY}`
       );
       
       if (!response.ok) {
@@ -46,8 +47,16 @@ function App() {
     }
   };
 
-  const getDirectLink = (fileId) => {
-    return `https://drive.google.com/file/d/${fileId}/preview`;
+  const getStreamLink = (fileId) => {
+    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '';
+    const gb = bytes / (1024 * 1024 * 1024);
+    if (gb >= 1) return `${gb.toFixed(1)} GB`;
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(0)} MB`;
   };
 
   const handleMovieClick = (movie) => {
@@ -57,6 +66,10 @@ function App() {
 
   const handleBack = () => {
     setSelectedMovie(null);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.src = '';
+    }
   };
 
   const handleRefresh = () => {
@@ -64,16 +77,17 @@ function App() {
   };
 
   const toggleFullscreen = () => {
-    const elem = document.documentElement;
-    if (!document.fullscreenElement) {
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen();
-      } else if (elem.webkitRequestFullscreen) {
-        elem.webkitRequestFullscreen();
-      }
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
+    if (videoRef.current) {
+      if (!document.fullscreenElement) {
+        if (videoRef.current.requestFullscreen) {
+          videoRef.current.requestFullscreen();
+        } else if (videoRef.current.webkitEnterFullscreen) {
+          videoRef.current.webkitEnterFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
       }
     }
   };
@@ -142,7 +156,14 @@ function App() {
           </div>
           
           <div style={{ padding: '10px' }}>
-            <h2 style={{ margin: '10px 0', fontSize: '16px' }}>{selectedMovie.name}</h2>
+            <h2 style={{ margin: '10px 0', fontSize: '16px' }}>
+              {selectedMovie.name}
+              {selectedMovie.size && (
+                <span style={{ fontSize: '12px', color: '#999', marginLeft: '10px' }}>
+                  ({formatFileSize(selectedMovie.size)})
+                </span>
+              )}
+            </h2>
             <div style={{ 
               position: 'relative',
               paddingBottom: '56.25%',
@@ -150,20 +171,36 @@ function App() {
               overflow: 'hidden',
               backgroundColor: '#000'
             }}>
-              <iframe
-                src={getDirectLink(selectedMovie.id)}
+              <video
+                ref={videoRef}
+                src={getStreamLink(selectedMovie.id)}
+                controls
+                controlsList="nodownload"
+                preload="metadata"
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
                   height: '100%',
-                  border: 'none'
+                  backgroundColor: '#000'
                 }}
-                allow="autoplay; fullscreen"
-                allowFullScreen
-                title={selectedMovie.name}
-              />
+                playsInline
+                autoPlay
+              >
+                Your browser does not support video playback.
+              </video>
+            </div>
+            <div style={{ 
+              marginTop: '15px', 
+              padding: '10px', 
+              backgroundColor: '#1a1a1a', 
+              borderRadius: '4px',
+              fontSize: '12px',
+              color: '#999'
+            }}>
+              <p style={{ margin: '5px 0' }}>💡 Tip: Video streams in chunks like YouTube - no need to wait for full download!</p>
+              <p style={{ margin: '5px 0' }}>📱 On mobile: Tap fullscreen for best experience</p>
             </div>
           </div>
         </div>
@@ -246,6 +283,16 @@ function App() {
                   }}>
                     {movie.name}
                   </p>
+                  {movie.size && (
+                    <p style={{
+                      margin: '4px 0 0 0',
+                      fontSize: '10px',
+                      textAlign: 'center',
+                      color: '#666'
+                    }}>
+                      {formatFileSize(movie.size)}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
