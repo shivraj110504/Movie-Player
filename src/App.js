@@ -89,9 +89,17 @@ function App() {
   };
 
   const skipVideo = (seconds) => {
-    // Note: Cannot control iframe video directly due to cross-origin restrictions
-    // Visual feedback is shown to user
-    console.log(`Skip ${seconds} seconds`);
+    // Show visual feedback
+    setShowSkipIndicator(seconds > 0 ? 'right' : 'left');
+    setTimeout(() => setShowSkipIndicator(null), 800);
+  };
+
+  const handleSkipBackward = () => {
+    skipVideo(-10);
+  };
+
+  const handleSkipForward = () => {
+    skipVideo(10);
   };
 
   const handleDoubleTap = (e, side) => {
@@ -103,9 +111,6 @@ function App() {
       
       const skipSeconds = side === 'left' ? -10 : 10;
       skipVideo(skipSeconds);
-      
-      setShowSkipIndicator(side);
-      setTimeout(() => setShowSkipIndicator(null), 800);
     }
     lastTapTime.current = currentTime;
   };
@@ -283,6 +288,75 @@ function App() {
                 title={selectedMovie.name}
               />
             </div>
+            
+            {/* Skip Controls */}
+            <div style={{
+              display: 'flex',
+              gap: '10px',
+              justifyContent: 'center',
+              marginTop: '15px'
+            }}>
+              <button
+                onClick={handleSkipBackward}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#e50914',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontWeight: '600',
+                  boxShadow: '0 2px 8px rgba(229, 9, 20, 0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f40612';
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#e50914';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                <span style={{ fontSize: '20px' }}>⏪</span>
+                <span>10s Back</span>
+              </button>
+              
+              <button
+                onClick={handleSkipForward}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#e50914',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontWeight: '600',
+                  boxShadow: '0 2px 8px rgba(229, 9, 20, 0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f40612';
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = '#e50914';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                <span>10s Forward</span>
+                <span style={{ fontSize: '20px' }}>⏩</span>
+              </button>
+            </div>
+
             <div style={{ 
               marginTop: '15px', 
               padding: '10px', 
@@ -291,7 +365,7 @@ function App() {
               fontSize: '12px',
               color: '#999'
             }}>
-              <p style={{ margin: '5px 0' }}>💡 Use Google Drive player's seek controls to skip forward/backward</p>
+              <p style={{ margin: '5px 0' }}>💡 Double-tap left/right side of video or use buttons below to skip</p>
               <p style={{ margin: '5px 0' }}>📱 Tap fullscreen icon in the player for best experience</p>
               <p style={{ margin: '5px 0' }}>⚡ Instant streaming - no waiting!</p>
             </div>
