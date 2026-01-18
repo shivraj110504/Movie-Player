@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import './App.css';
 
-export default function MoviePlayer() {
+function App() {
   const [movies, setMovies] = useState([]);
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -194,7 +195,6 @@ export default function MoviePlayer() {
               overflow: 'hidden',
               backgroundColor: '#000'
             }}>
-              {/* Left tap area - excluding bottom 15% for controls */}
               <div
                 onClick={(e) => handleDoubleTap(e, 'left')}
                 style={{
@@ -202,13 +202,12 @@ export default function MoviePlayer() {
                   left: 0,
                   top: 0,
                   width: '40%',
-                  height: '85%',
+                  height: '100%',
                   zIndex: 10,
                   cursor: 'pointer'
                 }}
               />
               
-              {/* Right tap area - excluding bottom 15% for controls */}
               <div
                 onClick={(e) => handleDoubleTap(e, 'right')}
                 style={{
@@ -216,13 +215,12 @@ export default function MoviePlayer() {
                   right: 0,
                   top: 0,
                   width: '40%',
-                  height: '85%',
+                  height: '100%',
                   zIndex: 10,
                   cursor: 'pointer'
                 }}
               />
 
-              {/* Skip indicators */}
               {showSkipIndicator === 'left' && (
                 <div style={{
                   position: 'absolute',
@@ -412,3 +410,5 @@ export default function MoviePlayer() {
     </div>
   );
 }
+
+export default App;
