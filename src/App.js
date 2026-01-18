@@ -7,7 +7,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showSkipIndicator, setShowSkipIndicator] = useState(null);
-  const iframeRef = useRef(null);
+  const [useIframe, setUseIframe] = useState(true);
+  const videoRef = useRef(null);
   const lastTapTime = useRef(0);
 
   const FOLDER_ID = process.env.REACT_APP_FOLDER_ID || '18AWs95TmYiGv3ZaZ4yW62KLbymPwgB0U';
@@ -49,7 +50,14 @@ function App() {
     loadMovies();
   }, [FOLDER_ID, API_KEY]);
 
+  // Stream URL with proxy to avoid download prompts for large files
+  const getStreamUrl = (fileId) => {
+    // Using Google Drive's streaming endpoint that works for large files
+    return `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+  };
+
   const getEmbedUrl = (fileId) => {
+    // Fallback embed URL
     return `https://drive.google.com/file/d/${fileId}/preview`;
   };
 
@@ -63,11 +71,14 @@ function App() {
 
   const handleMovieClick = (movie) => {
     setSelectedMovie(movie);
+    // Default to iframe for large files initially
+    setUseIframe(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleBack = () => {
     setSelectedMovie(null);
+    setUseIframe(true);
   };
 
   const handleRefresh = () => {
@@ -75,35 +86,47 @@ function App() {
   };
 
   const toggleFullscreen = () => {
-    const iframe = iframeRef.current;
-    if (iframe && !document.fullscreenElement) {
-      const container = iframe.parentElement;
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
-      } else if (container.mozRequestFullScreen) {
-        container.mozRequestFullScreen();
-      } else if (container.msRequestFullscreen) {
-        container.msRequestFullscreen();
+    if (useIframe) {
+      const iframe = videoRef.current;
+      if (iframe && !document.fullscreenElement) {
+        const container = iframe.parentElement;
+        if (container.requestFullscreen) {
+          container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+          container.webkitRequestFullscreen();
+        }
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
       }
     } else {
-      if (document.exitFullscreen) {
+      const video = videoRef.current;
+      if (video && !document.fullscreenElement) {
+        const container = video.parentElement;
+        if (container.requestFullscreen) {
+          container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+          container.webkitRequestFullscreen();
+        }
+      } else if (document.exitFullscreen) {
         document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        document.mozCancelFullScreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
       }
     }
   };
 
   const skipVideo = (seconds) => {
-    // Show visual feedback
-    setShowSkipIndicator(seconds > 0 ? 'right' : 'left');
-    setTimeout(() => setShowSkipIndicator(null), 800);
+    if (useIframe) {
+      // Show visual feedback for iframe (can't control playback)
+      setShowSkipIndicator(seconds > 0 ? 'right' : 'left');
+      setTimeout(() => setShowSkipIndicator(null), 500);
+    } else {
+      const video = videoRef.current;
+      if (video) {
+        video.currentTime = Math.max(0, Math.min(video.currentTime + seconds, video.duration));
+        
+        setShowSkipIndicator(seconds > 0 ? 'right' : 'left');
+        setTimeout(() => setShowSkipIndicator(null), 500);
+      }
+    }
   };
 
   const handleSkipBackward = () => {
@@ -127,36 +150,13 @@ function App() {
     lastTapTime.current = currentTime;
   };
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      if (!selectedMovie) return;
-      
-      // Left arrow key - skip backward
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        skipVideo(-10);
-      }
-      // Right arrow key - skip forward
-      else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        skipVideo(10);
-      }
-      // J key - skip backward (YouTube style)
-      else if (e.key === 'j' || e.key === 'J') {
-        e.preventDefault();
-        skipVideo(-10);
-      }
-      // L key - skip forward (YouTube style)
-      else if (e.key === 'l' || e.key === 'L') {
-        e.preventDefault();
-        skipVideo(10);
-      }
-    };
+  const switchToDirectPlayer = () => {
+    setUseIframe(false);
+  };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [selectedMovie]);
+  const switchToIframePlayer = () => {
+    setUseIframe(true);
+  };
 
   if (loading) {
     return (
@@ -220,6 +220,37 @@ function App() {
             >
               ⛶ Fullscreen
             </button>
+            {useIframe ? (
+              <button 
+                onClick={switchToDirectPlayer}
+                style={{
+                  padding: '10px 16px',
+                  backgroundColor: '#e50914',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                🎮 Enable Skip Controls
+              </button>
+            ) : (
+              <button 
+                onClick={switchToIframePlayer}
+                style={{
+                  padding: '10px 16px',
+                  backgroundColor: '#555',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                📺 Standard Player
+              </button>
+            )}
           </div>
           
           <div style={{ padding: '10px' }}>
@@ -236,36 +267,39 @@ function App() {
               paddingBottom: '56.25%',
               height: 0,
               overflow: 'hidden',
-              backgroundColor: '#000',
-              borderRadius: '8px'
+              backgroundColor: '#000'
             }}>
-              {/* Left tap area */}
-              <div
-                onClick={(e) => handleDoubleTap(e, 'left')}
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  width: '35%',
-                  height: '85%',
-                  zIndex: 10,
-                  cursor: 'pointer'
-                }}
-              />
-              
-              {/* Right tap area */}
-              <div
-                onClick={(e) => handleDoubleTap(e, 'right')}
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: 0,
-                  width: '35%',
-                  height: '85%',
-                  zIndex: 10,
-                  cursor: 'pointer'
-                }}
-              />
+              {!useIframe && (
+                <>
+                  {/* Left tap area */}
+                  <div
+                    onClick={(e) => handleDoubleTap(e, 'left')}
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      width: '40%',
+                      height: '100%',
+                      zIndex: 10,
+                      cursor: 'pointer'
+                    }}
+                  />
+                  
+                  {/* Right tap area */}
+                  <div
+                    onClick={(e) => handleDoubleTap(e, 'right')}
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 0,
+                      width: '40%',
+                      height: '100%',
+                      zIndex: 10,
+                      cursor: 'pointer'
+                    }}
+                  />
+                </>
+              )}
 
               {showSkipIndicator === 'left' && (
                 <div style={{
@@ -274,10 +308,10 @@ function App() {
                   top: '50%',
                   transform: 'translate(-50%, -50%)',
                   zIndex: 20,
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
                   borderRadius: '50%',
-                  width: '90px',
-                  height: '90px',
+                  width: '80px',
+                  height: '80px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -285,12 +319,10 @@ function App() {
                   color: '#000',
                   fontSize: '14px',
                   fontWeight: 'bold',
-                  pointerEvents: 'none',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  animation: 'skipPulse 0.8s ease-out'
+                  pointerEvents: 'none'
                 }}>
-                  <div style={{ fontSize: '32px', marginBottom: '4px' }}>⏪</div>
-                  <div style={{ fontSize: '13px' }}>10 sec</div>
+                  <div style={{ fontSize: '28px' }}>⏪</div>
+                  <div>10 sec</div>
                 </div>
               )}
 
@@ -301,10 +333,10 @@ function App() {
                   top: '50%',
                   transform: 'translate(50%, -50%)',
                   zIndex: 20,
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
                   borderRadius: '50%',
-                  width: '90px',
-                  height: '90px',
+                  width: '80px',
+                  height: '80px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -312,149 +344,144 @@ function App() {
                   color: '#000',
                   fontSize: '14px',
                   fontWeight: 'bold',
-                  pointerEvents: 'none',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                  animation: 'skipPulse 0.8s ease-out'
+                  pointerEvents: 'none'
                 }}>
-                  <div style={{ fontSize: '32px', marginBottom: '4px' }}>⏩</div>
-                  <div style={{ fontSize: '13px' }}>10 sec</div>
+                  <div style={{ fontSize: '28px' }}>⏩</div>
+                  <div>10 sec</div>
                 </div>
               )}
 
-              <iframe
-                ref={iframeRef}
-                src={getEmbedUrl(selectedMovie.id)}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  border: 'none',
-                  borderRadius: '8px'
-                }}
-                allow="autoplay; fullscreen; picture-in-picture; accelerometer; gyroscope"
-                allowFullScreen
-                title={selectedMovie.name}
-              />
+              {useIframe ? (
+                <iframe
+                  ref={videoRef}
+                  src={getEmbedUrl(selectedMovie.id)}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 'none'
+                  }}
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowFullScreen
+                  title={selectedMovie.name}
+                />
+              ) : (
+                <video
+                  ref={videoRef}
+                  src={getStreamUrl(selectedMovie.id)}
+                  controls
+                  controlsList="nodownload"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: '#000'
+                  }}
+                  onError={(e) => {
+                    console.error('Video load error:', e);
+                  }}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              )}
             </div>
             
-            {/* Skip Controls */}
-            <div style={{
-              display: 'flex',
-              gap: '12px',
-              justifyContent: 'center',
-              marginTop: '20px',
-              flexWrap: 'wrap'
-            }}>
-              <button
-                onClick={handleSkipBackward}
-                style={{
-                  padding: '14px 28px',
-                  backgroundColor: '#e50914',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  fontWeight: '600',
-                  boxShadow: '0 4px 12px rgba(229, 9, 20, 0.4)',
-                  transition: 'all 0.2s',
-                  minWidth: '140px',
-                  justifyContent: 'center'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f40612';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(229, 9, 20, 0.5)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = '#e50914';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(229, 9, 20, 0.4)';
-                }}
-              >
-                <span style={{ fontSize: '22px' }}>⏪</span>
-                <span>10s</span>
-              </button>
-              
-              <button
-                onClick={handleSkipForward}
-                style={{
-                  padding: '14px 28px',
-                  backgroundColor: '#e50914',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  fontWeight: '600',
-                  boxShadow: '0 4px 12px rgba(229, 9, 20, 0.4)',
-                  transition: 'all 0.2s',
-                  minWidth: '140px',
-                  justifyContent: 'center'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f40612';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(229, 9, 20, 0.5)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = '#e50914';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(229, 9, 20, 0.4)';
-                }}
-              >
-                <span>10s</span>
-                <span style={{ fontSize: '22px' }}>⏩</span>
-              </button>
-            </div>
+            {/* Skip Controls - only show in direct player mode */}
+            {!useIframe && (
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                justifyContent: 'center',
+                marginTop: '15px'
+              }}>
+                <button
+                  onClick={handleSkipBackward}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#e50914',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: '600',
+                    boxShadow: '0 2px 8px rgba(229, 9, 20, 0.3)',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f40612';
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#e50914';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  <span style={{ fontSize: '20px' }}>⏪</span>
+                  <span>10s Back</span>
+                </button>
+                
+                <button
+                  onClick={handleSkipForward}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#e50914',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: '600',
+                    boxShadow: '0 2px 8px rgba(229, 9, 20, 0.3)',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f40612';
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#e50914';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  <span>10s Forward</span>
+                  <span style={{ fontSize: '20px' }}>⏩</span>
+                </button>
+              </div>
+            )}
 
             <div style={{ 
-              marginTop: '20px', 
-              padding: '15px', 
+              marginTop: '15px', 
+              padding: '10px', 
               backgroundColor: '#1a1a1a', 
-              borderRadius: '8px',
-              fontSize: '13px',
-              color: '#aaa',
-              lineHeight: '1.6'
+              borderRadius: '4px',
+              fontSize: '12px',
+              color: '#999'
             }}>
-              <div style={{ marginBottom: '12px', fontSize: '14px', color: '#fff', fontWeight: '600' }}>
-                ⚡ Quick Controls Guide
-              </div>
-              <div style={{ display: 'grid', gap: '8px' }}>
-                <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#e50914', fontSize: '16px' }}>👆</span>
-                  <span><strong>Double-tap</strong> left/right side of video to skip ±10 seconds</span>
-                </p>
-                <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#e50914', fontSize: '16px' }}>⌨️</span>
-                  <span><strong>Arrow keys</strong> or <strong>J/L keys</strong> to skip (YouTube style)</span>
-                </p>
-                <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#e50914', fontSize: '16px' }}>🎮</span>
-                  <span>Use skip buttons above for quick access</span>
-                </p>
-                <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#e50914', fontSize: '16px' }}>🎬</span>
-                  <span>Use Google Drive player controls inside video for play/pause/seek</span>
-                </p>
-              </div>
-              <div style={{ 
-                marginTop: '12px', 
-                paddingTop: '12px', 
-                borderTop: '1px solid #333',
-                fontSize: '12px',
-                color: '#666'
-              }}>
-                💡 Tip: The skip controls show visual feedback. Use the player's built-in seek bar for precise navigation.
-              </div>
+              {useIframe ? (
+                <>
+                  <p style={{ margin: '5px 0' }}>📺 Standard streaming mode - works best for large files (2-5GB)</p>
+                  <p style={{ margin: '5px 0' }}>🎮 Click "Enable Skip Controls" button to enable double-tap skip feature</p>
+                  <p style={{ margin: '5px 0' }}>💡 Use Google Drive player's built-in controls to seek</p>
+                </>
+              ) : (
+                <>
+                  <p style={{ margin: '5px 0' }}>✨ Skip controls enabled!</p>
+                  <p style={{ margin: '5px 0' }}>💡 Double-tap left/right side of video to skip 10 seconds</p>
+                  <p style={{ margin: '5px 0' }}>📱 Use skip buttons below for precise control</p>
+                  <p style={{ margin: '5px 0', color: '#ff9800' }}>⚠️ Note: Large files may take time to load in this mode</p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -515,16 +542,7 @@ function App() {
                     padding: '10px',
                     borderRadius: '6px',
                     cursor: 'pointer',
-                    border: '1px solid #333',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.borderColor = '#e50914';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.borderColor = '#333';
-                    e.currentTarget.style.transform = 'translateY(0)';
+                    border: '1px solid #333'
                   }}
                 >
                   <div style={{
@@ -540,8 +558,7 @@ function App() {
                   }}>
                     <div style={{
                       position: 'absolute',
-                      fontSize: '32px',
-                      color: '#e50914'
+                      fontSize: '32px'
                     }}>▶</div>
                   </div>
                   <p style={{ 
@@ -569,23 +586,6 @@ function App() {
           )}
         </div>
       )}
-      
-      <style>{`
-        @keyframes skipPulse {
-          0% {
-            transform: translate(-50%, -50%) scale(0.8);
-            opacity: 0;
-          }
-          50% {
-            transform: translate(-50%, -50%) scale(1.1);
-            opacity: 1;
-          }
-          100% {
-            transform: translate(-50%, -50%) scale(1);
-            opacity: 0;
-          }
-        }
-      `}</style>
     </div>
   );
 }
