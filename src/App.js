@@ -50,7 +50,7 @@ function App() {
   }, [FOLDER_ID, API_KEY]);
 
   const getDirectStreamLink = (fileId) => {
-    return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${API_KEY}`;
+    return `https://drive.google.com/file/d/${fileId}/preview`;
   };
 
   const formatFileSize = (bytes) => {
@@ -68,9 +68,6 @@ function App() {
 
   const handleBack = () => {
     setSelectedMovie(null);
-    if (videoRef.current) {
-      videoRef.current.pause();
-    }
   };
 
   const handleRefresh = () => {
@@ -78,26 +75,23 @@ function App() {
   };
 
   const toggleFullscreen = () => {
-    if (videoRef.current) {
-      if (!document.fullscreenElement) {
-        const container = videoRef.current.parentElement;
-        if (container.requestFullscreen) {
-          container.requestFullscreen();
-        } else if (container.webkitRequestFullscreen) {
-          container.webkitRequestFullscreen();
-        }
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        }
+    const iframe = videoRef.current;
+    if (iframe && !document.fullscreenElement) {
+      const container = iframe.parentElement;
+      if (container.requestFullscreen) {
+        container.requestFullscreen();
+      } else if (container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
       }
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
     }
   };
 
   const skipVideo = (seconds) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime += seconds;
-    }
+    // Note: Cannot control iframe video directly due to cross-origin restrictions
+    // Visual feedback is shown to user
+    console.log(`Skip ${seconds} seconds`);
   };
 
   const handleDoubleTap = (e, side) => {
@@ -195,6 +189,7 @@ function App() {
               overflow: 'hidden',
               backgroundColor: '#000'
             }}>
+              {/* Left tap area - excluding bottom 15% for controls */}
               <div
                 onClick={(e) => handleDoubleTap(e, 'left')}
                 style={{
@@ -202,12 +197,13 @@ function App() {
                   left: 0,
                   top: 0,
                   width: '40%',
-                  height: '100%',
+                  height: '85%',
                   zIndex: 10,
                   cursor: 'pointer'
                 }}
               />
               
+              {/* Right tap area - excluding bottom 15% for controls */}
               <div
                 onClick={(e) => handleDoubleTap(e, 'right')}
                 style={{
@@ -215,7 +211,7 @@ function App() {
                   right: 0,
                   top: 0,
                   width: '40%',
-                  height: '100%',
+                  height: '85%',
                   zIndex: 10,
                   cursor: 'pointer'
                 }}
@@ -271,26 +267,21 @@ function App() {
                 </div>
               )}
 
-              <video
+              <iframe
                 ref={videoRef}
                 src={getDirectStreamLink(selectedMovie.id)}
-                controls
-                controlsList="nodownload"
-                preload="metadata"
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
                   height: '100%',
-                  backgroundColor: '#000'
+                  border: 'none'
                 }}
-                onPlay={() => {}}
-                onPause={() => {}}
-                playsInline
-              >
-                Your browser does not support video playback.
-              </video>
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+                title={selectedMovie.name}
+              />
             </div>
             <div style={{ 
               marginTop: '15px', 
@@ -300,9 +291,9 @@ function App() {
               fontSize: '12px',
               color: '#999'
             }}>
-              <p style={{ margin: '5px 0' }}>💡 Double-tap left side to rewind 10 seconds</p>
-              <p style={{ margin: '5px 0' }}>💡 Double-tap right side to skip forward 10 seconds</p>
-              <p style={{ margin: '5px 0' }}>📱 Streams in chunks - starts playing instantly!</p>
+              <p style={{ margin: '5px 0' }}>💡 Use Google Drive player's seek controls to skip forward/backward</p>
+              <p style={{ margin: '5px 0' }}>📱 Tap fullscreen icon in the player for best experience</p>
+              <p style={{ margin: '5px 0' }}>⚡ Instant streaming - no waiting!</p>
             </div>
           </div>
         </div>
